@@ -43,7 +43,6 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [secili, setSecili] = useState(null);
   const [toast, setToast] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "isler"), orderBy("olusturuldu", "desc"));
@@ -125,7 +124,7 @@ export default function App() {
       <button style={s.fabBtn} onClick={() => setModal("ekle")}>+</button>
 
       {modal === "ekle" && (
-        <EkleModal sekme={sekme} db={db} storage={storage} onClose={() => setModal(null)} showToast={showToast} loading={loading} setLoading={setLoading} />
+        <EkleModal sekme={sekme} onClose={() => setModal(null)} showToast={showToast} />
       )}
       {modal === "detay" && secili && (
         <DetayModal kayit={secili} onClose={() => { setModal(null); setSecili(null); }} onGuncelle={guncelle} onSil={sil} />
@@ -134,7 +133,7 @@ export default function App() {
   );
 }
 
-function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading }) {
+function EkleModal({ sekme, onClose, showToast }) {
   const [form, setForm] = useState({ durum: sekme === "fatura" ? "Kesilecek" : sekme === "evrak" ? "Beklemede" : "Yapılmadı" });
   const [musteri, setMusteri] = useState("");
   const [oneri, setOneri] = useState([]);
@@ -142,6 +141,7 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
   const [sesBlob, setSesBlob] = useState(null);
   const [sesURL, setSesURL] = useState(null);
   const [kayitYapiliyor, setKayitYapiliyor] = useState(false);
+  const [yukleniyor, setYukleniyor] = useState(false);
   const fotoRef = useRef();
   const mediaRef = useRef();
   const chunksRef = useRef([]);
@@ -160,7 +160,8 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
       recorder.ondataavailable = e => chunksRef.current.push(e.data);
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setSesBlob(blob); setSesURL(URL.createObjectURL(blob));
+        setSesBlob(blob);
+        setSesURL(URL.createObjectURL(blob));
         stream.getTracks().forEach(t => t.stop());
       };
       recorder.start();
@@ -173,7 +174,7 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
 
   const kaydet = async () => {
     if (!musteri.trim()) { showToast("Müşteri adı zorunlu!", "hata"); return; }
-    setLoading(true);
+    setYukleniyor(true);
     try {
       const fotoURLler = [];
       for (const foto of fotolar) {
@@ -187,20 +188,31 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
         await uploadBytes(r, sesBlob);
         sesKaydURL = await getDownloadURL(r);
       }
-      await addDoc(collection(db, "isler"), { tip: sekme, musteri: musteri.trim(), ...form, fotolar: fotoURLler, sesKayd: sesKaydURL, olusturuldu: serverTimestamp() });
+      await addDoc(collection(db, "isler"), {
+        tip: sekme,
+        musteri: musteri.trim(),
+        ...form,
+        fotolar: fotoURLler,
+        sesKayd: sesKaydURL,
+        olusturuldu: serverTimestamp(),
+      });
       addMusteriGecmis(musteri.trim());
+      setYukleniyor(false);
       showToast("Kayıt eklendi ✓");
       onClose();
-    } catch (e) { console.error(e); showToast("Hata oluştu!", "hata"); }
-    setLoading(false);
+    } catch (e) {
+      console.error(e);
+      setYukleniyor(false);
+      showToast("Hata: " + e.message, "hata");
+    }
   };
 
   return (
-    <div style={s.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+    <div style={s.overlay} onClick={e => e.target === e.currentTarget && !yukleniyor && onClose()}>
       <div style={s.modal}>
         <div style={s.modalBaslik}>
           {sekme === "fatura" ? "💰 Yeni Fatura Kaydı" : sekme === "atama" ? "👤 Yeni Atama" : "📁 Yeni Evrak Kaydı"}
-          <button style={s.kapat} onClick={onClose}>✕</button>
+          {!yukleniyor && <button style={s.kapat} onClick={onClose}>✕</button>}
         </div>
 
         <div style={s.fg}>
@@ -222,7 +234,7 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
           </div>
           <div style={s.fg}>
             <label style={s.lbl}>Tutar (₺)</label>
-            <input style={s.inp} type="number" placeholder="0" value={form.tutar || ""} onChange={e => setForm({ ...form, tutar: e.target.value })} />
+            <input style={s.inp} type="text" placeholder="Örn: 1500 veya 1500+KDV" value={form.tutar || ""} onChange={e => setForm({ ...form, tutar: e.target.value })} />
           </div>
         </>)}
 
@@ -276,6 +288,11 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
             📷 {fotolar.length > 0 ? `${fotolar.length} fotoğraf seçildi` : "Fotoğraf Ekle"}
           </button>
           <input ref={fotoRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => setFotolar(Array.from(e.target.files))} />
+          {fotolar.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {fotolar.map((f, i) => <img key={i} src={URL.createObjectURL(f)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6 }} alt="" />)}
+            </div>
+          )}
         </div>
 
         <div style={s.fg}>
@@ -292,8 +309,8 @@ function EkleModal({ sekme, db, storage, onClose, showToast, loading, setLoading
           )}
         </div>
 
-        <button style={{ ...s.kaydetBtn, opacity: loading ? 0.6 : 1 }} onClick={kaydet} disabled={loading}>
-          {loading ? "⏳ Yükleniyor..." : "💾 Kaydet"}
+        <button style={{ ...s.kaydetBtn, opacity: yukleniyor ? 0.7 : 1 }} onClick={kaydet} disabled={yukleniyor}>
+          {yukleniyor ? "⏳ Kaydediliyor..." : "💾 Kaydet"}
         </button>
       </div>
     </div>
@@ -414,4 +431,3 @@ const s = {
   notKutu: { background: "#0F172A", borderRadius: 8, padding: 12, marginBottom: 14, borderLeft: "3px solid #0EA5E9" },
   notEtk: { fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: 1.5, marginBottom: 8, textTransform: "uppercase" },
 };
- 
