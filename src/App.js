@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { db, storage } from "./firebase";
-import {
-  collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { supabase } from "./supabase";
 
 const UZMANLAR = [
   "Ertuğrul GÜNEY (C Sınıfı İGU)",
@@ -27,7 +23,7 @@ const DURUM_RENK = {
 
 const fmtTarih = (ts) => {
   if (!ts) return "";
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const d = new Date(ts);
   return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
@@ -44,23 +40,43 @@ export default function App() {
   const [secili, setSecili] = useState(null);
   const [toast, setToast] = useState(null);
 
+  const showToast = (msg, tip = "ok") => {
+    setToast({ msg, tip });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const yukle = async () => {
+    const { data, error } = await supabase
+      .from("isler")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) { showToast("Veri yüklenemedi: " + error.message, "hata"); return; }
+    setKayitlar(data || []);
+  };
+
   useEffect(() => {
-    const q = query(collection(db, "isler"), orderBy("olusturuldu", "desc"));
-    return onSnapshot(q, snap => setKayitlar(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    yukle();
+    // Gerçek zamanlı dinle
+    const channel = supabase
+      .channel("isler_degisim")
+      .on("postgres_changes", { event: "*", schema: "public", table: "isler" }, () => yukle())
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
 
-  const showToast = (msg, tip = "ok") => { setToast({ msg, tip }); setTimeout(() => setToast(null), 3000); };
-
   const guncelle = async (id, data) => {
-    try { await updateDoc(doc(db, "isler", id), data); showToast("Güncellendi ✓"); }
-    catch { showToast("Hata!", "hata"); }
+    const { error } = await supabase.from("isler").update(data).eq("id", id);
+    if (error) { showToast("Hata: " + error.message, "hata"); return; }
+    showToast("Güncellendi ✓");
+    yukle();
   };
 
   const sil = async (id) => {
     if (!window.confirm("Bu kaydı silmek istiyor musun?")) return;
-    await deleteDoc(doc(db, "isler", id));
+    await supabase.from("isler").delete().eq("id", id);
     setModal(null); setSecili(null);
     showToast("Silindi.");
+    yukle();
   };
 
   const filtreliKayitlar = kayitlar.filter(k => k.tip === sekme);
@@ -114,9 +130,9 @@ export default function App() {
               </div>
             )}
             {k.tip === "fatura" && k.tutar && <div style={s.kartAlt}><span>💸 {k.tutar} ₺</span></div>}
-            {k.tip === "evrak" && k.evrakTur && <div style={s.kartAlt}><span>📋 {k.evrakTur}</span></div>}
-            {k.not && <div style={s.kartNot}>{k.not.slice(0, 70)}{k.not.length > 70 ? "..." : ""}</div>}
-            <div style={s.kartTarih}>{fmtTarih(k.olusturuldu)}</div>
+            {k.tip === "evrak" && k.evrak_tur && <div style={s.kartAlt}><span>📋 {k.evrak_tur}</span></div>}
+            {k.aciklama && <div style={s.kartNot}>{k.aciklama.slice(0, 70)}{k.aciklama.length > 70 ? "..." : ""}</div>}
+            <div style={s.kartTarih}>{fmtTarih(k.created_at)}</div>
           </div>
         ))}
       </div>
@@ -124,7 +140,7 @@ export default function App() {
       <button style={s.fabBtn} onClick={() => setModal("ekle")}>+</button>
 
       {modal === "ekle" && (
-        <EkleModal sekme={sekme} onClose={() => setModal(null)} showToast={showToast} />
+        <EkleModal sekme={sekme} onClose={() => setModal(null)} showToast={showToast} onYukle={yukle} />
       )}
       {modal === "detay" && secili && (
         <DetayModal kayit={secili} onClose={() => { setModal(null); setSecili(null); }} onGuncelle={guncelle} onSil={sil} />
@@ -133,7 +149,7 @@ export default function App() {
   );
 }
 
-function EkleModal({ sekme, onClose, showToast }) {
+function EkleModal({ sekme, onClose, showToast, onYukle }) {
   const [form, setForm] = useState({ durum: sekme === "fatura" ? "Kesilecek" : sekme === "evrak" ? "Beklemede" : "Yapılmadı" });
   const [musteri, setMusteri] = useState("");
   const [oneri, setOneri] = useState([]);
@@ -176,34 +192,51 @@ function EkleModal({ sekme, onClose, showToast }) {
     if (!musteri.trim()) { showToast("Müşteri adı zorunlu!", "hata"); return; }
     setYukleniyor(true);
     try {
+      // Fotoğrafları yükle
       const fotoURLler = [];
       for (const foto of fotolar) {
-        const r = ref(storage, `foto/${Date.now()}_${foto.name}`);
-        await uploadBytes(r, foto);
-        fotoURLler.push(await getDownloadURL(r));
+        const dosyaAdi = `${Date.now()}_${foto.name}`;
+        const { error: uploadError } = await supabase.storage.from("fotolar").upload(dosyaAdi, foto);
+        if (!uploadError) {
+          const { data } = supabase.storage.from("fotolar").getPublicUrl(dosyaAdi);
+          fotoURLler.push(data.publicUrl);
+        }
       }
+
+      // Ses kaydını yükle
       let sesKaydURL = null;
       if (sesBlob) {
-        const r = ref(storage, `ses/${Date.now()}.webm`);
-        await uploadBytes(r, sesBlob);
-        sesKaydURL = await getDownloadURL(r);
+        const sesAdi = `${Date.now()}.webm`;
+        const { error: sesError } = await supabase.storage.from("sesler").upload(sesAdi, sesBlob);
+        if (!sesError) {
+          const { data } = supabase.storage.from("sesler").getPublicUrl(sesAdi);
+          sesKaydURL = data.publicUrl;
+        }
       }
-      await addDoc(collection(db, "isler"), {
+
+      const { error } = await supabase.from("isler").insert({
         tip: sekme,
         musteri: musteri.trim(),
-        ...form,
-        fotolar: fotoURLler,
-        sesKayd: sesKaydURL,
-        olusturuldu: serverTimestamp(),
+        durum: form.durum,
+        aciklama: form.aciklama || null,
+        tutar: form.tutar || null,
+        uzman: form.uzman || null,
+        hekim: form.hekim || null,
+        evrak_tur: form.evrak_tur || null,
+        fotolar: fotoURLler.length > 0 ? fotoURLler : null,
+        ses_kayd: sesKaydURL,
       });
+
+      if (error) { showToast("Hata: " + error.message, "hata"); setYukleniyor(false); return; }
+
       addMusteriGecmis(musteri.trim());
-      setYukleniyor(false);
       showToast("Kayıt eklendi ✓");
+      onYukle();
+      setYukleniyor(false);
       onClose();
     } catch (e) {
-      console.error(e);
-      setYukleniyor(false);
       showToast("Hata: " + e.message, "hata");
+      setYukleniyor(false);
     }
   };
 
@@ -233,7 +266,7 @@ function EkleModal({ sekme, onClose, showToast }) {
             </select>
           </div>
           <div style={s.fg}>
-            <label style={s.lbl}>Tutar (₺)</label>
+            <label style={s.lbl}>Tutar</label>
             <input style={s.inp} type="text" placeholder="Örn: 1500 veya 1500+KDV" value={form.tutar || ""} onChange={e => setForm({ ...form, tutar: e.target.value })} />
           </div>
         </>)}
@@ -264,7 +297,7 @@ function EkleModal({ sekme, onClose, showToast }) {
         {sekme === "evrak" && (<>
           <div style={s.fg}>
             <label style={s.lbl}>Evrak Türü</label>
-            <select style={s.inp} value={form.evrakTur || ""} onChange={e => setForm({ ...form, evrakTur: e.target.value })}>
+            <select style={s.inp} value={form.evrak_tur || ""} onChange={e => setForm({ ...form, evrak_tur: e.target.value })}>
               <option value="">Seç...</option>
               {EVRAK_TURLER.map(t => <option key={t}>{t}</option>)}
             </select>
@@ -279,7 +312,7 @@ function EkleModal({ sekme, onClose, showToast }) {
 
         <div style={s.fg}>
           <label style={s.lbl}>Not / Açıklama</label>
-          <textarea style={{ ...s.inp, height: 80, resize: "none" }} placeholder="Notlarını buraya yaz..." value={form.not || ""} onChange={e => setForm({ ...form, not: e.target.value })} />
+          <textarea style={{ ...s.inp, height: 80, resize: "none" }} placeholder="Notlarını buraya yaz..." value={form.aciklama || ""} onChange={e => setForm({ ...form, aciklama: e.target.value })} />
         </div>
 
         <div style={s.fg}>
@@ -341,26 +374,26 @@ function DetayModal({ kayit, onClose, onGuncelle, onSil }) {
         )}
         {kayit.tip === "fatura" && kayit.tutar && (
           <div style={s.infoKutu}>
-            <div style={s.infoSatir}><span style={s.infoEtk}>💸 Tutar</span><span style={{ color: "#CBD5E1", fontSize: 14 }}>{kayit.tutar} ₺</span></div>
+            <div style={s.infoSatir}><span style={s.infoEtk}>💸 Tutar</span><span style={{ color: "#CBD5E1", fontSize: 14 }}>{kayit.tutar}</span></div>
           </div>
         )}
-        {kayit.tip === "evrak" && kayit.evrakTur && (
+        {kayit.tip === "evrak" && kayit.evrak_tur && (
           <div style={s.infoKutu}>
-            <div style={s.infoSatir}><span style={s.infoEtk}>📋 Tür</span><span style={{ color: "#CBD5E1", fontSize: 14 }}>{kayit.evrakTur}</span></div>
+            <div style={s.infoSatir}><span style={s.infoEtk}>📋 Tür</span><span style={{ color: "#CBD5E1", fontSize: 14 }}>{kayit.evrak_tur}</span></div>
           </div>
         )}
 
-        {kayit.not && (
+        {kayit.aciklama && (
           <div style={s.notKutu}>
             <div style={s.notEtk}>NOTLAR</div>
-            <p style={{ margin: 0, lineHeight: 1.7, color: "#D1D5DB", fontSize: 14 }}>{kayit.not}</p>
+            <p style={{ margin: 0, lineHeight: 1.7, color: "#D1D5DB", fontSize: 14 }}>{kayit.aciklama}</p>
           </div>
         )}
 
-        {kayit.sesKayd && (
+        {kayit.ses_kayd && (
           <div style={{ marginBottom: 16 }}>
             <div style={s.notEtk}>SES KAYDI</div>
-            <audio controls src={kayit.sesKayd} style={{ width: "100%", marginTop: 6 }} />
+            <audio controls src={kayit.ses_kayd} style={{ width: "100%", marginTop: 6 }} />
           </div>
         )}
 
@@ -384,7 +417,7 @@ function DetayModal({ kayit, onClose, onGuncelle, onSil }) {
         <button style={{ ...s.kaydetBtn, marginBottom: 12 }} onClick={() => onGuncelle(kayit.id, { durum })}>✓ Durumu Kaydet</button>
 
         <div style={s.notEtk}>EKLENME TARİHİ</div>
-        <div style={{ color: "#64748B", fontSize: 13, marginBottom: 16 }}>{fmtTarih(kayit.olusturuldu)}</div>
+        <div style={{ color: "#64748B", fontSize: 13, marginBottom: 16 }}>{fmtTarih(kayit.created_at)}</div>
 
         <button style={s.silBtn} onClick={() => onSil(kayit.id)}>🗑️ Kaydı Sil</button>
       </div>
