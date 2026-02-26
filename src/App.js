@@ -39,11 +39,11 @@ const getSesFormat = () => {
 // Tema renkleri
 const TEMA = {
   dark: {
-    bg: "#0F172A", bg2: "#1A1A1A", bg3: "#1E293B", bg4: "#0F172A",
-    border: "#E85C0D30", border2: "#334155", border3: "#2A2A2A",
-    text: "#F8FAFC", text2: "#94A3B8", text3: "#64748B", text4: "#475569",
+    bg: "#111111", bg2: "#1A1A1A", bg3: "#222222", bg4: "#1A1A1A",
+    border: "#E85C0D30", border2: "#3A3A3A", border3: "#2A2A2A",
+    text: "#F8FAFC", text2: "#CBD5E1", text3: "#94A3B8", text4: "#64748B",
     logoBg: "#ffffff",
-    inputBg: "#0F172A", inputBorder: "#E85C0D30",
+    inputBg: "#383838", inputBorder: "#E85C0D50",
     kartBg: "#1E293B", kartBorder: "#E85C0D30",
     modalBg: "#1A1A1A",
     secBtn: "#334155",
@@ -109,9 +109,9 @@ export default function App() {
       {toast && <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", color: "#fff", padding: "10px 20px", borderRadius: 8, fontWeight: 600, fontSize: 14, zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,0.4)", whiteSpace: "nowrap", background: toast.tip === "hata" ? "#EF4444" : "#10B981" }}>{toast.msg}</div>}
 
       {/* HEADER */}
-      <div style={{ background: t.bg2, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: tema === "light" ? "0 1px 4px rgba(0,0,0,0.08)" : "none" }}>
-        <div style={{ background: t.logoBg, borderRadius: 10, padding: "8px 16px", display: "flex", alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
-          <img src={LOGO_SRC} alt="Pragmatik" style={{ height: 44, objectFit: "contain" }} />
+      <div style={{ background: t.bg2, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: tema === "light" ? "0 1px 4px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 400 }}>
+        <div style={{ background: "#ffffff", borderRadius: 10, padding: "6px 10px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", width: 130, height: 52, flexShrink: 0 }}>
+          <img src={LOGO_SRC} alt="Pragmatik" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5, color: t.text }}>ISG TAKİP</div>
