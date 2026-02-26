@@ -110,11 +110,11 @@ export default function App() {
 
       {/* HEADER */}
       <div style={{ background: t.bg2, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: tema === "light" ? "0 1px 4px rgba(0,0,0,0.08)" : "none" }}>
-        <div style={{ background: t.logoBg, borderRadius: 8, padding: "4px 8px", display: "flex", alignItems: "center" }}>
-          <img src={LOGO_SRC} alt="Pragmatik" style={{ height: 28, objectFit: "contain" }} />
+        <div style={{ background: t.logoBg, borderRadius: 10, padding: "8px 16px", display: "flex", alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+          <img src={LOGO_SRC} alt="Pragmatik" style={{ height: 44, objectFit: "contain" }} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: 0.5, color: t.text }}>ISG TAKİP</div>
+          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5, color: t.text }}>ISG TAKİP</div>
           <div style={{ fontSize: 10, color: t.text3 }}>İş Sağlığı ve Güvenliği</div>
         </div>
         <button onClick={() => setTamamlananAcik(true)} style={{ background: "#10B98115", border: "1px solid #10B98140", color: "#10B981", padding: "5px 10px", borderRadius: 8, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
@@ -221,6 +221,7 @@ function KayitKart({ kayit, t, onDetay, onTamamla, onKisiAta, onDuzenle }) {
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         onClick={() => { if (Math.abs(offset) < 10 && !kisiMenuAcik) onDetay(); }}>
         {kayit.atanan_kisi && <div style={{ background: TURUNCU + "15", border: "1px solid " + TURUNCU + "40", color: TURUNCU, fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 6, marginBottom: 6, display: "inline-block" }}>👤 {kayit.atanan_kisi} üstlendi</div>}
+        {(() => { const saat = (Date.now() - new Date(kayit.created_at)) / 3600000; return saat > 36 ? <div style={{ background: "#EF444415", border: "1px solid #EF444440", color: "#EF4444", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 6, marginBottom: 6, display: "inline-block", marginLeft: kayit.atanan_kisi ? 6 : 0 }}>⚠️ Gecikti ({Math.floor(saat)}s)</div> : null; })()}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: t.text, flex: 1, marginRight: 8 }}>{kayit.musteri}</div>
           <div style={{ color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap", background: DURUM_RENK[kayit.durum] || "#6B7280" }}>{kayit.durum}</div>
@@ -345,18 +346,50 @@ function DuzenleModal({ kayit, t, onClose, onYukle, showToast }) {
 }
 
 function TamamlananlarModal({ kayitlar, t, onClose, onGeriAl, onSil }) {
+  const [aktifTab, setAktifTab] = useState("fatura");
+  const TABS = [
+    { id: "fatura", label: "💰 Fatura" },
+    { id: "atama", label: "👤 Atama" },
+    { id: "evrak", label: "📁 Evrak" },
+  ];
+  const filtreliler = kayitlar.filter(k => k.tip === aktifTab);
+
+  const KartBilgi = ({ k }) => {
+    if (k.tip === "fatura" && k.tutar) return <div style={{ color: t.text3, fontSize: 12, marginTop: 3 }}>💸 {k.tutar}</div>;
+    if (k.tip === "atama") return <div style={{ color: t.text3, fontSize: 12, marginTop: 3 }}>{k.uzman && "🔧 " + k.uzman.split("(")[0].trim()}{k.hekim && "  🩺 " + k.hekim}</div>;
+    if (k.tip === "evrak" && k.evrak_tur) return <div style={{ color: t.text3, fontSize: 12, marginTop: 3 }}>📋 {k.evrak_tur}</div>;
+    return null;
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background: t.modalBg, borderRadius: "16px 16px 0 0", padding: 20, width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto", borderTop: "2px solid " + TURUNCU }}>
-        <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, display: "flex", justifyContent: "space-between" }}>✅ Tamamlanan İşler ({kayitlar.length})<button style={{ background: "none", border: "none", color: t.text3, fontSize: 20, cursor: "pointer" }} onClick={onClose}>✕</button></div>
-        {kayitlar.length === 0 && <div style={{ textAlign: "center", color: t.text3, padding: "40px 0" }}>Henüz tamamlanan iş yok</div>}
-        {kayitlar.map(k => (
+        <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
+          ✅ Tamamlanan İşler ({kayitlar.length})
+          <button style={{ background: "none", border: "none", color: t.text3, fontSize: 20, cursor: "pointer" }} onClick={onClose}>✕</button>
+        </div>
+        {/* SEKMELEr */}
+        <div style={{ display: "flex", borderBottom: "1px solid " + t.border2, marginBottom: 16 }}>
+          {TABS.map(tab => {
+            const count = kayitlar.filter(k => k.tip === tab.id).length;
+            const aktif = aktifTab === tab.id;
+            return (
+              <button key={tab.id} style={{ flex: 1, padding: "9px 4px", background: "none", border: "none", borderBottom: aktif ? "2px solid " + TURUNCU : "2px solid transparent", color: aktif ? TURUNCU : t.text3, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                onClick={() => setAktifTab(tab.id)}>
+                {tab.label} {count > 0 && <span style={{ background: aktif ? TURUNCU : t.border2, color: aktif ? "#fff" : t.text2, borderRadius: 10, fontSize: 10, fontWeight: 700, padding: "1px 5px" }}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+        {filtreliler.length === 0 && <div style={{ textAlign: "center", color: t.text3, padding: "30px 0" }}>Bu kategoride tamamlanan iş yok</div>}
+        {filtreliler.map(k => (
           <div key={k.id} style={{ background: t.kartBg, borderRadius: 10, padding: 14, marginBottom: 10, border: "1px solid " + t.kartBorder, opacity: 0.85 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: t.text3, textDecoration: "line-through" }}>{k.musteri}</div>
-              <div style={{ color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#10B981" }}>✓ Tamamlandı</div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: t.text3, textDecoration: "line-through" }}>{k.musteri}</div>
+              <div style={{ color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: "#10B981" }}>✓ Tamam</div>
             </div>
-            {k.aciklama && <div style={{ color: t.text3, fontSize: 12 }}>{k.aciklama.slice(0, 60)}</div>}
+            <KartBilgi k={k} />
+            {k.aciklama && <div style={{ color: t.text4, fontSize: 12, marginTop: 4 }}>{k.aciklama.slice(0, 60)}</div>}
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button style={{ flex: 1, background: t.secBtn, border: "none", color: t.text2, padding: "8px", borderRadius: 8, fontSize: 13, cursor: "pointer" }} onClick={() => onGeriAl(k.id)}>↩ Geri Al</button>
               <button style={{ flex: 1, background: "transparent", border: "1px solid #EF4444", color: "#EF4444", padding: "8px", borderRadius: 8, fontSize: 13, cursor: "pointer" }} onClick={() => onSil(k.id)}>🗑 Sil</button>
