@@ -85,7 +85,7 @@ export default function App() {
       {toast && <div style={{ ...s.toast, background: toast.tip === "hata" ? "#EF4444" : "#10B981" }}>{toast.msg}</div>}
 
       <div style={s.header}>
-        <img src={LOGO} alt="Pragmatik" style={{ height: 32, objectFit: "contain" }} />
+        <img src={LOGO} alt="Pragmatik" style={{ height: 32, objectFit: "contain", mixBlendMode: "screen" }} />
         <div style={{ flex: 1, marginLeft: 10 }}>
           <div style={s.headerBaslik}>ISG TAKİP</div>
           <div style={s.headerAlt}>İş Sağlığı ve Güvenliği Yönetimi</div>
@@ -565,9 +565,9 @@ function EkleModal({ sekme, onClose, showToast, onYukle }) {
 }
 
 const s = {
-  root: { background: "#0F172A", minHeight: "100vh", color: "#F8FAFC", fontFamily: "'DM Sans', 'Segoe UI', sans-serif", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column" },
+  root: { background: "#0F172A", minHeight: "100vh", color: "#F8FAFC", fontFamily: "'DM Sans', 'Segoe UI', sans-serif", maxWidth: 480, margin: "0 auto", display: "flex", flexDirection: "column", overflowX: "hidden" },
   toast: { position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", color: "#fff", padding: "10px 20px", borderRadius: 8, fontWeight: 600, fontSize: 14, zIndex: 9999, boxShadow: "0 4px 20px rgba(0,0,0,0.4)", whiteSpace: "nowrap" },
-  header: { background: "#1A1A1A", padding: "12px 18px", display: "flex", alignItems: "center", gap: 10, borderBottom: "2px solid #E85C0D" },
+  header: { background: "#1A1A1A", padding: "12px 18px", display: "flex", alignItems: "center", gap: 10 },
   headerBaslik: { fontSize: 15, fontWeight: 700, letterSpacing: 1, color: "#F8FAFC" },
   headerAlt: { fontSize: 10, color: "#64748B" },
   tamamlananBtn: { background: "#10B98115", border: "1px solid #10B98140", color: "#10B981", padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", gap: 4 },
