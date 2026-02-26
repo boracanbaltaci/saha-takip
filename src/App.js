@@ -33,6 +33,17 @@ const addMusteriGecmis = (isim) => {
   if (!list.includes(isim)) localStorage.setItem("musteri_gecmis", JSON.stringify([isim, ...list].slice(0, 100)));
 };
 
+// iPhone/iOS tespiti
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+// Desteklenen ses formatını bul
+const getSesFormat = () => {
+  if (isIOS()) return { mimeType: "audio/mp4", ext: "mp4" };
+  if (MediaRecorder.isTypeSupported("audio/webm")) return { mimeType: "audio/webm", ext: "webm" };
+  if (MediaRecorder.isTypeSupported("audio/ogg")) return { mimeType: "audio/ogg", ext: "ogg" };
+  return { mimeType: "audio/mp4", ext: "mp4" };
+};
+
 export default function App() {
   const [sekme, setSekme] = useState("fatura");
   const [kayitlar, setKayitlar] = useState([]);
@@ -42,7 +53,7 @@ export default function App() {
 
   const showToast = (msg, tip = "ok") => {
     setToast({ msg, tip });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
   const yukle = async () => {
@@ -50,13 +61,12 @@ export default function App() {
       .from("isler")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) { showToast("Veri yüklenemedi: " + error.message, "hata"); return; }
+    if (error) { showToast("Veri yüklenemedi!", "hata"); return; }
     setKayitlar(data || []);
   };
 
   useEffect(() => {
     yukle();
-    // Gerçek zamanlı dinle
     const channel = supabase
       .channel("isler_degisim")
       .on("postgres_changes", { event: "*", schema: "public", table: "isler" }, () => yukle())
@@ -129,10 +139,14 @@ export default function App() {
                 {k.hekim && <span>🩺 {k.hekim}</span>}
               </div>
             )}
-            {k.tip === "fatura" && k.tutar && <div style={s.kartAlt}><span>💸 {k.tutar} ₺</span></div>}
+            {k.tip === "fatura" && k.tutar && <div style={s.kartAlt}><span>💸 {k.tutar}</span></div>}
             {k.tip === "evrak" && k.evrak_tur && <div style={s.kartAlt}><span>📋 {k.evrak_tur}</span></div>}
             {k.aciklama && <div style={s.kartNot}>{k.aciklama.slice(0, 70)}{k.aciklama.length > 70 ? "..." : ""}</div>}
-            <div style={s.kartTarih}>{fmtTarih(k.created_at)}</div>
+            <div style={s.kartMeta}>
+              {k.fotolar?.length > 0 && <span>📷 {k.fotolar.length}</span>}
+              {k.ses_kayd && <span>🎙 Ses var</span>}
+              <span>{fmtTarih(k.created_at)}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -156,11 +170,15 @@ function EkleModal({ sekme, onClose, showToast, onYukle }) {
   const [fotolar, setFotolar] = useState([]);
   const [sesBlob, setSesBlob] = useState(null);
   const [sesURL, setSesURL] = useState(null);
+  const [sesMimeType, setSesMimeType] = useState("audio/webm");
+  const [sesExt, setSesExt] = useState("webm");
   const [kayitYapiliyor, setKayitYapiliyor] = useState(false);
+  const [kayitSure, setKayitSure] = useState(0);
   const [yukleniyor, setYukleniyor] = useState(false);
   const fotoRef = useRef();
   const mediaRef = useRef();
   const chunksRef = useRef([]);
+  const timerRef = useRef();
 
   const musteriDegis = (val) => {
     setMusteri(val);
@@ -171,31 +189,46 @@ function EkleModal({ sekme, onClose, showToast, onYukle }) {
   const sesBaslat = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const format = getSesFormat();
+      setSesMimeType(format.mimeType);
+      setSesExt(format.ext);
+      
+      const options = MediaRecorder.isTypeSupported(format.mimeType) ? { mimeType: format.mimeType } : {};
+      const recorder = new MediaRecorder(stream, options);
       chunksRef.current = [];
-      recorder.ondataavailable = e => chunksRef.current.push(e.data);
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: format.mimeType });
         setSesBlob(blob);
         setSesURL(URL.createObjectURL(blob));
         stream.getTracks().forEach(t => t.stop());
+        clearInterval(timerRef.current);
       };
-      recorder.start();
+      recorder.start(100);
       mediaRef.current = recorder;
       setKayitYapiliyor(true);
-    } catch { showToast("Mikrofon erişimi reddedildi", "hata"); }
+      setKayitSure(0);
+      timerRef.current = setInterval(() => setKayitSure(s => s + 1), 1000);
+    } catch (e) {
+      showToast("Mikrofon erişimi reddedildi", "hata");
+    }
   };
 
-  const sesDur = () => { mediaRef.current?.stop(); setKayitYapiliyor(false); };
+  const sesDur = () => {
+    mediaRef.current?.stop();
+    setKayitYapiliyor(false);
+    clearInterval(timerRef.current);
+  };
+
+  const fmtSure = (s) => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
 
   const kaydet = async () => {
     if (!musteri.trim()) { showToast("Müşteri adı zorunlu!", "hata"); return; }
     setYukleniyor(true);
     try {
-      // Fotoğrafları yükle
       const fotoURLler = [];
       for (const foto of fotolar) {
-        const dosyaAdi = `${Date.now()}_${foto.name}`;
+        const dosyaAdi = `${Date.now()}_${Math.random().toString(36).slice(2)}_${foto.name}`;
         const { error: uploadError } = await supabase.storage.from("fotolar").upload(dosyaAdi, foto);
         if (!uploadError) {
           const { data } = supabase.storage.from("fotolar").getPublicUrl(dosyaAdi);
@@ -203,14 +236,15 @@ function EkleModal({ sekme, onClose, showToast, onYukle }) {
         }
       }
 
-      // Ses kaydını yükle
       let sesKaydURL = null;
       if (sesBlob) {
-        const sesAdi = `${Date.now()}.webm`;
-        const { error: sesError } = await supabase.storage.from("sesler").upload(sesAdi, sesBlob);
+        const sesAdi = `${Date.now()}_${Math.random().toString(36).slice(2)}.${sesExt}`;
+        const { error: sesError } = await supabase.storage.from("sesler").upload(sesAdi, sesBlob, { contentType: sesMimeType });
         if (!sesError) {
           const { data } = supabase.storage.from("sesler").getPublicUrl(sesAdi);
           sesKaydURL = data.publicUrl;
+        } else {
+          showToast("Ses yüklenemedi: " + sesError.message, "hata");
         }
       }
 
@@ -323,7 +357,7 @@ function EkleModal({ sekme, onClose, showToast, onYukle }) {
           <input ref={fotoRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => setFotolar(Array.from(e.target.files))} />
           {fotolar.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-              {fotolar.map((f, i) => <img key={i} src={URL.createObjectURL(f)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6 }} alt="" />)}
+              {fotolar.map((f, i) => <img key={i} src={URL.createObjectURL(f)} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8 }} alt="" />)}
             </div>
           )}
         </div>
@@ -331,8 +365,11 @@ function EkleModal({ sekme, onClose, showToast, onYukle }) {
         <div style={s.fg}>
           <label style={s.lbl}>Ses Kaydı</label>
           {!sesURL ? (
-            <button style={{ ...s.medBtn, borderColor: kayitYapiliyor ? "#EF4444" : "#334155", color: kayitYapiliyor ? "#EF4444" : "#94A3B8" }} onClick={kayitYapiliyor ? sesDur : sesBaslat}>
-              {kayitYapiliyor ? "⏹ Kaydı Durdur" : "🎙 Ses Kaydı Başlat"}
+            <button
+              style={{ ...s.medBtn, borderColor: kayitYapiliyor ? "#EF4444" : "#334155", color: kayitYapiliyor ? "#EF4444" : "#94A3B8" }}
+              onClick={kayitYapiliyor ? sesDur : sesBaslat}
+            >
+              {kayitYapiliyor ? `⏹ Durdur  ${fmtSure(kayitSure)}` : "🎙 Ses Kaydı Başlat"}
             </button>
           ) : (
             <div>
@@ -393,7 +430,7 @@ function DetayModal({ kayit, onClose, onGuncelle, onSil }) {
         {kayit.ses_kayd && (
           <div style={{ marginBottom: 16 }}>
             <div style={s.notEtk}>SES KAYDI</div>
-            <audio controls src={kayit.ses_kayd} style={{ width: "100%", marginTop: 6 }} />
+            <audio controls src={kayit.ses_kayd} style={{ width: "100%", marginTop: 6 }} preload="metadata" />
           </div>
         )}
 
@@ -444,7 +481,7 @@ const s = {
   durumBadge: { color: "#fff", fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, whiteSpace: "nowrap" },
   kartAlt: { display: "flex", gap: 12, fontSize: 12, color: "#94A3B8", marginBottom: 4, flexWrap: "wrap" },
   kartNot: { color: "#64748B", fontSize: 12, marginTop: 4, lineHeight: 1.4 },
-  kartTarih: { color: "#475569", fontSize: 11, marginTop: 6 },
+  kartMeta: { display: "flex", gap: 10, fontSize: 11, color: "#475569", marginTop: 6, flexWrap: "wrap" },
   fabBtn: { position: "fixed", bottom: 24, right: "max(16px, calc(50% - 224px))", width: 56, height: 56, background: "#0EA5E9", border: "none", borderRadius: "50%", color: "#fff", fontSize: 32, cursor: "pointer", boxShadow: "0 4px 20px rgba(14,165,233,0.5)", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 },
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" },
   modal: { background: "#1E293B", borderRadius: "16px 16px 0 0", padding: 20, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" },
