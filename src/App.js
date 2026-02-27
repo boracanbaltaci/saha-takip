@@ -110,7 +110,7 @@ export default function App() {
 
       {/* HEADER */}
       <div style={{ background: t.bg2, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: tema === "light" ? "0 1px 4px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 400 }}>
-        <img src={LOGO_SRC} alt="Pragmatik" style={{ height: 48, objectFit: "contain", mixBlendMode: tema === "dark" ? "screen" : "normal", flexShrink: 0 }} />
+        <div style={{ background: "#ffffff", borderRadius: 10, padding: "6px 12px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={LOGO_SRC} alt="Pragmatik" style={{ height: 40, objectFit: "contain" }} /></div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5, color: t.text }}>ISG TAKİP</div>
           <div style={{ fontSize: 10, color: t.text3 }}>İş Sağlığı ve Güvenliği</div>
