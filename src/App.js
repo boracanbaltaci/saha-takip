@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 const UZMANLAR = ["Ertuğrul GÜNEY (C Sınıfı İGU)", "Yavuz CANPOLAT (A Sınıfı İGU)"];
 const HEKİMLER = ["Fahri Gurur POLAT", "Zehra Esra TEMELTAŞ"];
 const KİŞİLER = ["Berke", "Bahadır", "Bora", "Şafak", "Akad", "Semra"];
-const FATURA_DURUMLAR = ["Kesilecek", "Kesildi", "Eksik Kesildi", "Düzeltilecek", "Tamamlandı"];
+const FATURA_DURUMLAR = ["Kesilecek", "Kesildi", "Eksik Kesildi", "Düzeltilecek", "Tamamlandı", "İptal"];
 const EVRAK_TURLER = ["Eksik Evrak", "Hatalı Evrak", "Güncellenmesi Gereken", "İmza Eksik", "Diğer"];
 const EVRAK_DURUMLAR = ["Beklemede", "İşlemde", "Tamamlandı"];
 const TURUNCU = "#E85C0D";
@@ -13,7 +13,7 @@ const DURUM_RENK = {
   "Kesilecek": "#6B7280", "Kesildi": "#3B82F6", "Eksik Kesildi": "#EF4444",
   "Düzeltilecek": "#F59E0B", "Tamamlandı": "#10B981",
   "Beklemede": "#6B7280", "İşlemde": "#F59E0B",
-  "Yapılmadı": "#EF4444", "Yapıldı": "#10B981",
+  "Yapılmadı": "#EF4444", "Yapıldı": "#10B981", "İptal": "#6B7280",
 };
 
 const LOGO_SRC = "/logo.png";
@@ -110,9 +110,7 @@ export default function App() {
 
       {/* HEADER */}
       <div style={{ background: t.bg2, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: tema === "light" ? "0 1px 4px rgba(0,0,0,0.08)" : "0 2px 8px rgba(0,0,0,0.4)", position: "sticky", top: 0, zIndex: 400 }}>
-        <div style={{ background: "#ffffff", borderRadius: 10, padding: "6px 10px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", width: 130, height: 52, flexShrink: 0 }}>
-          <img src={LOGO_SRC} alt="Pragmatik" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-        </div>
+        <img src={LOGO_SRC} alt="Pragmatik" style={{ height: 48, objectFit: "contain", mixBlendMode: tema === "dark" ? "screen" : "normal", flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5, color: t.text }}>ISG TAKİP</div>
           <div style={{ fontSize: 10, color: t.text3 }}>İş Sağlığı ve Güvenliği</div>
