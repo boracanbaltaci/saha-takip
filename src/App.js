@@ -487,13 +487,10 @@ function EkleModal({ sekme, onClose, showToast, onYukle, t }) {
           <input style={inpStyle} placeholder="Firma adı yaz..." value={musteri} onChange={e => musteriDegis(e.target.value)} autoComplete="off" />
           {oneri.length > 0 && <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: "0 0 8px 8px", zIndex: 100 }}>{oneri.map(m => <div key={m} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 14, borderTop: "1px solid " + t.border2, color: t.text2 }} onClick={() => { setMusteri(m); setOneri([]); }}>{m}</div>)}</div>}
         </div>
-        {sekme === "fatura" && (<>
-        </>)}
         {sekme === "atama" && (<>
           <div style={fg}><label style={lbl}>İSG Uzmanı</label><select style={inpStyle} value={form.uzman || ""} onChange={e => setForm({ ...form, uzman: e.target.value })}><option value="">Seç...</option>{UZMANLAR.map(u => <option key={u}>{u}</option>)}</select></div>
           <div style={fg}><label style={lbl}>İşyeri Hekimi</label><select style={inpStyle} value={form.hekim || ""} onChange={e => setForm({ ...form, hekim: e.target.value })}><option value="">Seç...</option>{HEKİMLER.map(h => <option key={h}>{h}</option>)}</select></div>
         </>)}
-        {sekme === "evrak" && null
         <div style={fg}><label style={lbl}>Not / Açıklama</label><textarea style={{ ...inpStyle, height: 80, resize: "none" }} value={form.aciklama || ""} onChange={e => setForm({ ...form, aciklama: e.target.value })} /></div>
         <div style={fg}>
           <label style={lbl}>Fotoğraf</label>
