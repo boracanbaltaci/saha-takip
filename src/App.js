@@ -156,6 +156,8 @@ export default function App() {
         ))}
       </div>
 
+      <button style={{ position: "fixed", bottom: 24, left: "max(16px, calc(50% - 224px))", width: 56, height: 56, background: "#1D6F42", border: "none", borderRadius: "50%", color: "#fff", fontSize: 26, cursor: "pointer", boxShadow: "0 4px 24px rgba(29,111,66,0.6)", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, zIndex: 500 }}
+        onClick={() => window.open("https://docs.google.com/spreadsheets/d/1EtSGEE0J8ASqWxV47uNOlmoz2grPutz6s3raErGf_O8/edit?usp=sharing", "_blank")}>📊</button>
       <button style={{ position: "fixed", bottom: 24, right: "max(16px, calc(50% - 224px))", width: 56, height: 56, background: TURUNCU, border: "none", borderRadius: "50%", color: "#fff", fontSize: 32, cursor: "pointer", boxShadow: "0 4px 24px rgba(232,92,13,0.6)", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, zIndex: 500 }}
         onClick={() => setModal("ekle")}>+</button>
 
@@ -302,6 +304,25 @@ function DetayModal({ kayit, t, onClose, onGuncelle, onSil, onYukle, showToast }
         <button style={{ width: "100%", background: TURUNCU, border: "none", borderRadius: 10, padding: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 12 }} onClick={() => onGuncelle(kayit.id, { durum })}>✓ Durumu Kaydet</button>
         <div style={{ fontSize: 10, fontWeight: 700, color: t.text4, letterSpacing: 1.5, marginBottom: 6, textTransform: "uppercase" }}>EKLENME TARİHİ</div>
         <div style={{ color: t.text3, fontSize: 13, marginBottom: 16 }}>{fmtTarih(kayit.created_at)}</div>
+        <button style={{ width: "100%", background: t.bg3, border: "1px solid " + t.border2, color: t.text2, borderRadius: 8, padding: 12, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 10 }} onClick={() => {
+          const tip = kayit.tip === "fatura" ? "💰 Fatura" : kayit.tip === "atama" ? "👤 Atama" : "📁 Evrak";
+          const tarih = new Date(kayit.created_at).toLocaleDateString("tr-TR");
+          const satirlar = [
+            tip + " Kaydı — " + kayit.musteri,
+            "Durum: " + (kayit.durum || "-"),
+            kayit.uzman ? "Uzman: " + kayit.uzman : "",
+            kayit.hekim ? "Hekim: " + kayit.hekim : "",
+            kayit.aciklama ? "Not: " + kayit.aciklama : "",
+            "Tarih: " + tarih,
+            kayit.atanan_kisi ? "Atanan: " + kayit.atanan_kisi : "",
+          ].filter(Boolean).join("\n");
+          if (navigator.share) {
+            navigator.share({ title: kayit.musteri, text: satirlar });
+          } else {
+            navigator.clipboard.writeText(satirlar);
+            showToast("Panoya kopyalandı ✓");
+          }
+        }}>📤 Paylaş</button>
         <button style={{ width: "100%", background: "transparent", border: "1px solid #EF4444", color: "#EF4444", borderRadius: 8, padding: 12, fontSize: 14, fontWeight: 600, cursor: "pointer" }} onClick={() => onSil(kayit.id)}>🗑️ Kaydı Sil</button>
       </div>
     </div>
@@ -335,7 +356,6 @@ function DuzenleModal({ kayit, t, onClose, onYukle, showToast }) {
           <div style={{ marginBottom: 14 }}><label style={lbl}>İSG Uzmanı</label><select style={inpStyle} value={form.uzman} onChange={e => setForm({ ...form, uzman: e.target.value })}><option value="">Seç...</option>{UZMANLAR.map(u => <option key={u}>{u}</option>)}</select></div>
           <div style={{ marginBottom: 14 }}><label style={lbl}>İşyeri Hekimi</label><select style={inpStyle} value={form.hekim} onChange={e => setForm({ ...form, hekim: e.target.value })}><option value="">Seç...</option>{HEKİMLER.map(h => <option key={h}>{h}</option>)}</select></div>
         </>)}
-        {kayit.tip === "evrak" && <div style={{ marginBottom: 14 }}><label style={lbl}>Evrak Türü</label><select style={inpStyle} value={form.evrak_tur} onChange={e => setForm({ ...form, evrak_tur: e.target.value })}><option value="">Seç...</option>{EVRAK_TURLER.map(t => <option key={t}>{t}</option>)}</select></div>}
         <div style={{ marginBottom: 14 }}><label style={lbl}>Not / Açıklama</label><textarea style={{ ...inpStyle, height: 80, resize: "none" }} value={form.aciklama} onChange={e => setForm({ ...form, aciklama: e.target.value })} /></div>
         <button style={{ width: "100%", background: TURUNCU, border: "none", borderRadius: 10, padding: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: yukleniyor ? 0.7 : 1 }} onClick={kaydet} disabled={yukleniyor}>{yukleniyor ? "⏳ Kaydediliyor..." : "💾 Güncelle"}</button>
       </div>
@@ -468,18 +488,12 @@ function EkleModal({ sekme, onClose, showToast, onYukle, t }) {
           {oneri.length > 0 && <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: "0 0 8px 8px", zIndex: 100 }}>{oneri.map(m => <div key={m} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 14, borderTop: "1px solid " + t.border2, color: t.text2 }} onClick={() => { setMusteri(m); setOneri([]); }}>{m}</div>)}</div>}
         </div>
         {sekme === "fatura" && (<>
-          <div style={fg}><label style={lbl}>Fatura Durumu</label><select style={inpStyle} value={form.durum} onChange={e => setForm({ ...form, durum: e.target.value })}>{FATURA_DURUMLAR.map(d => <option key={d}>{d}</option>)}</select></div>
-          <div style={fg}><label style={lbl}>Tutar</label><input style={inpStyle} type="text" placeholder="Örn: 1500+KDV" value={form.tutar || ""} onChange={e => setForm({ ...form, tutar: e.target.value })} /></div>
         </>)}
         {sekme === "atama" && (<>
           <div style={fg}><label style={lbl}>İSG Uzmanı</label><select style={inpStyle} value={form.uzman || ""} onChange={e => setForm({ ...form, uzman: e.target.value })}><option value="">Seç...</option>{UZMANLAR.map(u => <option key={u}>{u}</option>)}</select></div>
           <div style={fg}><label style={lbl}>İşyeri Hekimi</label><select style={inpStyle} value={form.hekim || ""} onChange={e => setForm({ ...form, hekim: e.target.value })}><option value="">Seç...</option>{HEKİMLER.map(h => <option key={h}>{h}</option>)}</select></div>
-          <div style={fg}><label style={lbl}>Durum</label><select style={inpStyle} value={form.durum} onChange={e => setForm({ ...form, durum: e.target.value })}><option>Yapılmadı</option><option>Yapıldı</option></select></div>
         </>)}
-        {sekme === "evrak" && (<>
-          <div style={fg}><label style={lbl}>Evrak Türü</label><select style={inpStyle} value={form.evrak_tur || ""} onChange={e => setForm({ ...form, evrak_tur: e.target.value })}><option value="">Seç...</option>{EVRAK_TURLER.map(t => <option key={t}>{t}</option>)}</select></div>
-          <div style={fg}><label style={lbl}>Durum</label><select style={inpStyle} value={form.durum} onChange={e => setForm({ ...form, durum: e.target.value })}>{EVRAK_DURUMLAR.map(d => <option key={d}>{d}</option>)}</select></div>
-        </>)}
+        {sekme === "evrak" && null
         <div style={fg}><label style={lbl}>Not / Açıklama</label><textarea style={{ ...inpStyle, height: 80, resize: "none" }} value={form.aciklama || ""} onChange={e => setForm({ ...form, aciklama: e.target.value })} /></div>
         <div style={fg}>
           <label style={lbl}>Fotoğraf</label>
